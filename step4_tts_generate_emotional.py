@@ -2,15 +2,14 @@ import os
 import re
 import torch
 from tqdm import tqdm
-from datetime import datetime
 import soundfile as sf
-from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
+from transformers import pipeline
 
-# Load IndicParler-TTS model via HuggingFace
+# 📦 Load IndicParler-TTS model using the pipeline API
 print("📦 Loading IndicParler-TTS model...")
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model = AutoModelForSpeechSeq2Seq.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True).to(device)
-processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True)
+
+pipe = pipeline("text-to-speech", model="ai4bharat/indic-parler-tts", trust_remote_code=True, device=0 if device == "cuda" else -1)
 
 # Tamil male emotional prompts
 EMOTIONAL_MALE_PROMPTS = [
@@ -68,17 +67,20 @@ def assign_emotional_prompts(speaker_list):
     return mapping
 
 def synthesize(entries, speaker_mapping):
-    """Generate audio segments and save them using IndicParler-TTS."""
+    """Generate audio segments using IndicParler-TTS and save them."""
     for i, entry in enumerate(tqdm(entries, desc="🔊 Generating TTS")):
         description = speaker_mapping.get(entry["speaker"], EMOTIONAL_MALE_PROMPTS[0])
         text = entry["text"]
         output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
         try:
-            inputs = processor(text=text, speaker=description, return_tensors="pt").to(device)
-            with torch.no_grad():
-                speech = model.generate(**inputs)
-            sf.write(output_path, speech.cpu().numpy().squeeze(), 16000)
+            result = pipe({
+                "text": text,
+                "speaker_id": "ta_male",  # Default Tamil male speaker
+                "language": "ta",
+                "description": description
+            })
+            sf.write(output_path, result["audio"], 16000)
         except Exception as e:
             print(f"❌ Error generating TTS for segment {i+1}: {e}")
 

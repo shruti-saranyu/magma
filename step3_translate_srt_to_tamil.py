@@ -5,43 +5,46 @@ import torch
 from tqdm import tqdm
 from huggingface_hub import login
 
-# Load IndicTrans2 model and tokenizer
+# Device setup
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL_NAME = "ai4bharat/indictrans2-en-ta-v1"# ✅ Correct
-  # Multilingual model
+
+# Load Hugging Face token
 with open("HUGGINGFACE_TOKEN.txt") as f:
     token = f.read().strip()
-login(token)  
-model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(DEVICE)
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+login(token)
+
+# Correct model: Multilingual English → Indic (including Tamil)
+MODEL_NAME = "ai4bharat/indictrans2-en-indic-1B"
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
 
 # Language codes
-SRC_LANG = "ur"  # Source language (update this if needed)
+SRC_LANG = "en"  # Source language (English)
 TGT_LANG = "ta"  # Target language (Tamil)
 
-# SRT parsing pattern
+# SRT timestamp pattern
 TIMESTAMP_PATTERN = re.compile(r"(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})")
 
 def translate(text, src_lang=SRC_LANG, tgt_lang=TGT_LANG):
-    """Translate a single line of text using IndicTrans2."""
+    """Translate a single line using IndicTrans2."""
     inputs = tokenizer(
         text,
         return_tensors="pt",
         padding=True,
         truncation=True,
-        max_length=512
+        max_length=512,
+        src_lang=src_lang,
+        tgt_lang=tgt_lang
     ).to(DEVICE)
 
-    inputs['lang_code'] = torch.tensor([tokenizer.lang_code_to_id[f"{src_lang}_XX"]]).to(DEVICE)
     generated_tokens = model.generate(
         **inputs,
-        forced_bos_token_id=tokenizer.lang_code_to_id[f"{tgt_lang}_XX"],
         max_length=512
     )
     return tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
 
 def translate_srt(input_srt_path, output_srt_path):
-    """Translate the text lines in an SRT file while preserving format."""
+    """Translate subtitles from an SRT file and preserve structure."""
     with open(input_srt_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
@@ -50,7 +53,6 @@ def translate_srt(input_srt_path, output_srt_path):
     for line in tqdm(lines, desc="Translating"):
         line = line.strip()
         if line.isdigit() or TIMESTAMP_PATTERN.match(line) or line == "":
-            # Flush buffer if any
             if buffer:
                 original = " ".join(buffer)
                 try:
@@ -62,19 +64,17 @@ def translate_srt(input_srt_path, output_srt_path):
                 buffer = []
             translated_lines.append(line)
         else:
-            # Accumulate speaker+text line
             buffer.append(line)
 
-    # Catch any leftover buffer
     if buffer:
         original = " ".join(buffer)
         try:
             translated = translate(original)
-        except:
+        except Exception as e:
             translated = "[Translation failed]"
+            print(f"⚠️ Error translating: {original}\n{e}")
         translated_lines.append(translated)
 
-    # Write output
     with open(output_srt_path, "w", encoding="utf-8") as f:
         f.write("\n".join(translated_lines))
 

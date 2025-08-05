@@ -1,0 +1,98 @@
+import os
+import re
+import torch
+from datetime import datetime
+from TTS.api import TTS  # coqui-ai TTS
+from tqdm import tqdm
+
+# Load TTS model
+print("📦 Loading IndicParler-TTS model...")
+tts = TTS(model_name="ai4bharat/indic-parler-tts", progress_bar=False).to("cuda" if torch.cuda.is_available() else "cpu")
+
+# Tamil male emotional prompts
+EMOTIONAL_MALE_PROMPTS = [
+    "a calm Tamil-speaking male",
+    "an excited Tamil-speaking young male",
+    "a sad Tamil-speaking adult male",
+    "an angry Tamil-speaking male",
+    "a happy Tamil-speaking boy"
+]
+
+# Regex to extract speaker label
+SPEAKER_PATTERN = re.compile(r"^Speaker\s+(\w+):\s*(.+)$")
+
+# Create output directory
+os.makedirs("tts_segments", exist_ok=True)
+
+def parse_srt(srt_path):
+    """Parse translated SRT and return list of dicts with start, end, speaker, text."""
+    with open(srt_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    entries = []
+    i = 0
+    while i < len(lines):
+        if lines[i].strip().isdigit():
+            start_end = lines[i+1].strip()
+            text_line = lines[i+2].strip()
+            match = SPEAKER_PATTERN.match(text_line)
+
+            if match:
+                speaker = match.group(1)
+                text = match.group(2)
+            else:
+                speaker = "Unknown"
+                text = text_line
+
+            entries.append({
+                "index": lines[i].strip(),
+                "start_end": start_end,
+                "speaker": speaker,
+                "text": text
+            })
+            i += 4  # Skip to next block
+        else:
+            i += 1
+    return entries
+
+def assign_emotional_prompts(speaker_list):
+    """Assign different emotional prompts to each speaker."""
+    mapping = {}
+    idx = 0
+    for spk in sorted(set(speaker_list)):
+        mapping[spk] = EMOTIONAL_MALE_PROMPTS[idx % len(EMOTIONAL_MALE_PROMPTS)]
+        idx += 1
+    return mapping
+
+def synthesize(entries, speaker_mapping):
+    """Generate audio segments and save them."""
+    for i, entry in enumerate(tqdm(entries, desc="🔊 Generating TTS")):
+        description = speaker_mapping.get(entry["speaker"], EMOTIONAL_MALE_PROMPTS[0])
+        text = entry["text"]
+
+        filename = f"tts_segments/segment_{i+1:04d}.wav"
+        try:
+            tts.tts_to_file(
+                text=text,
+                speaker="ta_male",
+                language="ta",
+                description=description,
+                file_path=filename
+            )
+        except Exception as e:
+            print(f"❌ Error generating TTS for segment {i+1}: {e}")
+
+if __name__ == "__main__":
+    srt_path = "sample_output_translated_ta.srt"
+    entries = parse_srt(srt_path)
+
+    speakers = [e["speaker"] for e in entries]
+    speaker_map = assign_emotional_prompts(speakers)
+
+    print("🗣️ Speaker Prompt Mapping:")
+    for k, v in speaker_map.items():
+        print(f"  Speaker {k} → \"{v}\"")
+
+    synthesize(entries, speaker_map)
+
+    print("✅ TTS generation completed with male emotional voices. Files saved in: tts_segments/")

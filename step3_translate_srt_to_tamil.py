@@ -7,7 +7,7 @@ from huggingface_hub import login
 
 # Load IndicTrans2 model and tokenizer
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL_NAME = "ai4bharat/indictrans2-en-ta"  # ✅ Correct
+MODEL_NAME = "ai4bharat/indictrans2-en-ta-v1"# ✅ Correct
   # Multilingual model
 with open("HUGGINGFACE_TOKEN.txt") as f:
     token = f.read().strip()

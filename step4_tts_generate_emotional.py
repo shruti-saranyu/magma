@@ -2,11 +2,11 @@ import os
 import re
 from tqdm import tqdm
 import soundfile as sf
-from transformers import pipeline
+from parler_tts import ParlerTTS  # ✅ Official library import
 
-# 📦 Load IndicParler-TTS model via Hugging Face pipeline (no flash_attn required)
-print("📦 Loading IndicParler-TTS pipeline...")
-pipe = pipeline("text-to-speech", model="ai4bharat/indic-parler-tts", trust_remote_code=True)
+# 📦 Load IndicParler-TTS model
+print("📦 Loading IndicParler-TTS model...")
+tts = ParlerTTS.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True)
 
 # Tamil male emotional prompts
 EMOTIONAL_MALE_PROMPTS = [
@@ -64,20 +64,20 @@ def assign_emotional_prompts(speaker_list):
     return mapping
 
 def synthesize(entries, speaker_mapping):
-    """Generate audio segments using IndicParler-TTS pipeline and save them."""
+    """Generate audio segments using IndicParler-TTS and save them."""
     for i, entry in enumerate(tqdm(entries, desc="🔊 Generating TTS")):
         description = speaker_mapping.get(entry["speaker"], EMOTIONAL_MALE_PROMPTS[0])
         text = entry["text"]
         output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
         try:
-            output = pipe({
-                "text": text,
-                "description": description,
-                "speaker_id": "ta_male",
-                "language": "ta"
-            })
-            sf.write(output["audio"], output["sampling_rate"], output_path)
+            audio = tts.synthesize(
+                text=text,
+                speaker="ta_male",
+                language="ta",
+                description=description
+            )
+            sf.write(output_path, audio, 16000)
         except Exception as e:
             print(f"❌ Error generating TTS for segment {i+1}: {e}")
 

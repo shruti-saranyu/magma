@@ -5,7 +5,7 @@ from tqdm import tqdm
 import soundfile as sf
 from transformers import AutoProcessor, AutoModelForTextToSpeech
 
-# 📦 Load IndicParler-TTS model with custom architecture
+# 📦 Load IndicParler-TTS model and processor
 print("📦 Loading IndicParler-TTS model...")
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -53,7 +53,7 @@ def parse_srt(srt_path):
                 "speaker": speaker,
                 "text": text
             })
-            i += 4  # Skip to next block
+            i += 4
         else:
             i += 1
     return entries
@@ -75,10 +75,19 @@ def synthesize(entries, speaker_mapping):
         output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
         try:
-            inputs = processor(text=text, speaker_id="ta_male", language="ta", description=description, return_tensors="pt").to(device)
+            inputs = processor(
+                text=text,
+                description=description,
+                speaker_id="ta_male",
+                language="ta",
+                return_tensors="pt"
+            ).to(device)
+
             with torch.no_grad():
-                output = model(**inputs).waveform
-            sf.write(output_path, output.cpu().numpy(), 16000)
+                outputs = model(**inputs)
+
+            audio = outputs.audio[0].cpu().numpy()
+            sf.write(output_path, audio, 16000)
         except Exception as e:
             print(f"❌ Error generating TTS for segment {i+1}: {e}")
 

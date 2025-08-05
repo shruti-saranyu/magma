@@ -1,16 +1,12 @@
 import os
 import re
-import torch
 from tqdm import tqdm
 import soundfile as sf
-from transformers import AutoProcessor, AutoModelForTextToSpeech
+from parler_tts import ParlerTTS  # ✅ Use official library
 
-# 📦 Load IndicParler-TTS model and processor
+# 📦 Load IndicParler-TTS model
 print("📦 Loading IndicParler-TTS model...")
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True)
-model = AutoModelForTextToSpeech.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True).to(device)
+tts = ParlerTTS.from_pretrained("ai4bharat/indic-parler-tts")
 
 # Tamil male emotional prompts
 EMOTIONAL_MALE_PROMPTS = [
@@ -53,7 +49,7 @@ def parse_srt(srt_path):
                 "speaker": speaker,
                 "text": text
             })
-            i += 4
+            i += 4  # Skip to next block
         else:
             i += 1
     return entries
@@ -75,24 +71,18 @@ def synthesize(entries, speaker_mapping):
         output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
         try:
-            inputs = processor(
+            audio = tts.synthesize(
                 text=text,
-                description=description,
-                speaker_id="ta_male",
+                speaker="ta_male",
                 language="ta",
-                return_tensors="pt"
-            ).to(device)
-
-            with torch.no_grad():
-                outputs = model(**inputs)
-
-            audio = outputs.audio[0].cpu().numpy()
+                description=description
+            )
             sf.write(output_path, audio, 16000)
         except Exception as e:
             print(f"❌ Error generating TTS for segment {i+1}: {e}")
 
 if __name__ == "__main__":
-    srt_path = "sample_output_translated_ta.srt"
+    srt_path = "sample_output_translated_ta.srt"  # 🔁 Replace with your actual SRT path
     entries = parse_srt(srt_path)
 
     speakers = [e["speaker"] for e in entries]

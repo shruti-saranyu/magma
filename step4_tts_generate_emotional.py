@@ -3,13 +3,14 @@ import re
 import torch
 from tqdm import tqdm
 import soundfile as sf
-from transformers import pipeline
+from transformers import AutoProcessor, AutoModelForTextToSpeech
 
-# 📦 Load IndicParler-TTS model using the pipeline API
+# 📦 Load IndicParler-TTS model with custom architecture
 print("📦 Loading IndicParler-TTS model...")
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-pipe = pipeline("text-to-speech", model="ai4bharat/indic-parler-tts", trust_remote_code=True, device=0 if device == "cuda" else -1)
+processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True)
+model = AutoModelForTextToSpeech.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True).to(device)
 
 # Tamil male emotional prompts
 EMOTIONAL_MALE_PROMPTS = [
@@ -74,13 +75,10 @@ def synthesize(entries, speaker_mapping):
         output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
         try:
-            result = pipe({
-                "text": text,
-                "speaker_id": "ta_male",  # Default Tamil male speaker
-                "language": "ta",
-                "description": description
-            })
-            sf.write(output_path, result["audio"], 16000)
+            inputs = processor(text=text, speaker_id="ta_male", language="ta", description=description, return_tensors="pt").to(device)
+            with torch.no_grad():
+                output = model(**inputs).waveform
+            sf.write(output_path, output.cpu().numpy(), 16000)
         except Exception as e:
             print(f"❌ Error generating TTS for segment {i+1}: {e}")
 

@@ -1,14 +1,17 @@
 import os
 import re
-from tqdm import tqdm
+import torch
 import soundfile as sf
-from transformers import pipeline  # ✅ Hugging Face pipeline
+from tqdm import tqdm
 
-# 📦 Load IndicParler-TTS pipeline
-print("📦 Loading IndicParler-TTS pipeline...")
-pipe = pipeline("text-to-speech", model="ai4bharat/indic-parler-tts", trust_remote_code=True)
+from parler_tts import ParlerTTS  # Local import if cloned
+from parler_tts.audio_utils import load_audio
 
-# Tamil male emotional prompts
+# 📦 Load IndicParler-TTS model (local)
+print("📦 Loading IndicParler-TTS model locally...")
+tts = ParlerTTS.from_pretrained("ai4bharat/indic-parler-tts", device="cuda" if torch.cuda.is_available() else "cpu")
+
+# Tamil emotional descriptions
 EMOTIONAL_MALE_PROMPTS = [
     "a calm Tamil-speaking male",
     "an excited Tamil-speaking young male",
@@ -17,14 +20,10 @@ EMOTIONAL_MALE_PROMPTS = [
     "a happy Tamil-speaking boy"
 ]
 
-# Regex to extract speaker label
 SPEAKER_PATTERN = re.compile(r"^Speaker\s+(\w+):\s*(.+)$")
-
-# Output directory
 os.makedirs("tts_segments", exist_ok=True)
 
 def parse_srt(srt_path):
-    """Parse translated SRT and return list of dicts with start, end, speaker, text."""
     with open(srt_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
@@ -36,12 +35,8 @@ def parse_srt(srt_path):
             text_line = lines[i+2].strip()
             match = SPEAKER_PATTERN.match(text_line)
 
-            if match:
-                speaker = match.group(1)
-                text = match.group(2)
-            else:
-                speaker = "Unknown"
-                text = text_line
+            speaker = match.group(1) if match else "Unknown"
+            text = match.group(2) if match else text_line
 
             entries.append({
                 "index": lines[i].strip(),
@@ -55,7 +50,6 @@ def parse_srt(srt_path):
     return entries
 
 def assign_emotional_prompts(speaker_list):
-    """Assign different emotional prompts to each speaker."""
     mapping = {}
     idx = 0
     for spk in sorted(set(speaker_list)):
@@ -64,27 +58,24 @@ def assign_emotional_prompts(speaker_list):
     return mapping
 
 def synthesize(entries, speaker_mapping):
-    """Generate audio segments using IndicParler-TTS and save them."""
     for i, entry in enumerate(tqdm(entries, desc="🔊 Generating TTS")):
         description = speaker_mapping.get(entry["speaker"], EMOTIONAL_MALE_PROMPTS[0])
         text = entry["text"]
         output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
         try:
-            output = pipe(
-                text,
-                forward_params={
-                    "language": "ta",
-                    "speaker": "ta_male",
-                    "description": description
-                }
+            wav = tts.synthesize(
+                text=text,
+                speaker="ta_male",
+                language="ta",
+                description=description,
             )
-            sf.write(output_path, output["audio"], 16000)
+            sf.write(output_path, wav, 16000)
         except Exception as e:
-            print(f"❌ Error generating TTS for segment {i+1}: {e}")
+            print(f"❌ Error in segment {i+1}: {e}")
 
 if __name__ == "__main__":
-    srt_path = "sample_output_translated_ta.srt"  # Replace with your actual SRT file
+    srt_path = "sample_output_translated_ta.srt"  # Replace with your actual file
     entries = parse_srt(srt_path)
 
     speakers = [e["speaker"] for e in entries]
@@ -96,4 +87,4 @@ if __name__ == "__main__":
 
     synthesize(entries, speaker_map)
 
-    print("✅ TTS generation completed with emotional Tamil voices. Files saved in: tts_segments/")
+    print("✅ All segments saved in: tts_segments/")

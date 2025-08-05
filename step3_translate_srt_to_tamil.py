@@ -3,10 +3,15 @@ import re
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
 from tqdm import tqdm
+from huggingface_hub import login
 
 # Load IndicTrans2 model and tokenizer
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL_NAME = "ai4bharat/indictrans2-en-translation"  # Multilingual model
+MODEL_NAME = "ai4bharat/indictrans2-en-ta"  # ✅ Correct
+  # Multilingual model
+with open("HUGGINGFACE_TOKEN.txt") as f:
+    token = f.read().strip()
+login(token)  
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(DEVICE)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 

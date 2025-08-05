@@ -1,13 +1,16 @@
 import os
 import re
 import torch
-from datetime import datetime
-from TTS.api import TTS  # coqui-ai TTS
 from tqdm import tqdm
+from datetime import datetime
+import soundfile as sf
+from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
 
-# Load TTS model
+# Load IndicParler-TTS model via HuggingFace
 print("📦 Loading IndicParler-TTS model...")
-tts = TTS(model_name="ai4bharat/indic-parler-tts", progress_bar=False).to("cuda" if torch.cuda.is_available() else "cpu")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = AutoModelForSpeechSeq2Seq.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True).to(device)
+processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True)
 
 # Tamil male emotional prompts
 EMOTIONAL_MALE_PROMPTS = [
@@ -21,7 +24,7 @@ EMOTIONAL_MALE_PROMPTS = [
 # Regex to extract speaker label
 SPEAKER_PATTERN = re.compile(r"^Speaker\s+(\w+):\s*(.+)$")
 
-# Create output directory
+# Output directory
 os.makedirs("tts_segments", exist_ok=True)
 
 def parse_srt(srt_path):
@@ -65,20 +68,17 @@ def assign_emotional_prompts(speaker_list):
     return mapping
 
 def synthesize(entries, speaker_mapping):
-    """Generate audio segments and save them."""
+    """Generate audio segments and save them using IndicParler-TTS."""
     for i, entry in enumerate(tqdm(entries, desc="🔊 Generating TTS")):
         description = speaker_mapping.get(entry["speaker"], EMOTIONAL_MALE_PROMPTS[0])
         text = entry["text"]
+        output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
-        filename = f"tts_segments/segment_{i+1:04d}.wav"
         try:
-            tts.tts_to_file(
-                text=text,
-                speaker="ta_male",
-                language="ta",
-                description=description,
-                file_path=filename
-            )
+            inputs = processor(text=text, speaker=description, return_tensors="pt").to(device)
+            with torch.no_grad():
+                speech = model.generate(**inputs)
+            sf.write(output_path, speech.cpu().numpy().squeeze(), 16000)
         except Exception as e:
             print(f"❌ Error generating TTS for segment {i+1}: {e}")
 
@@ -95,4 +95,4 @@ if __name__ == "__main__":
 
     synthesize(entries, speaker_map)
 
-    print("✅ TTS generation completed with male emotional voices. Files saved in: tts_segments/")
+    print("✅ TTS generation completed with emotional Tamil voices. Files saved in: tts_segments/")

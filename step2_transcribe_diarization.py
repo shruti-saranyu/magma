@@ -6,12 +6,15 @@ from pyannote.core import Segment
 from datetime import timedelta
 
 
-def load_hf_token_from_file(file_path="hf_token.txt"):
+def load_hf_token_from_file(file_path="HUGGINGFACE_TOKEN.txt"):
     """Read Hugging Face token from a local file."""
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Token file '{file_path}' not found.")
     with open(file_path, "r") as f:
-        return f.read().strip()
+        token = f.read().strip()
+        if not token:
+            raise ValueError("Hugging Face token is empty.")
+        return token
 
 
 def extract_audio(video_path, audio_path):
@@ -29,14 +32,19 @@ def transcribe_with_diarization(video_path, hf_token=None):
 
     # Step 2: Load Hugging Face token
     if not hf_token:
-        hf_token = load_hf_token_from_file("hf_token.txt")
+        hf_token = load_hf_token_from_file("HUGGINGFACE_TOKEN.txt")
 
     # Step 3: Load diarization model
     print("🧑‍🤝‍🧑 Performing diarization...")
-    pipeline = Pipeline.from_pretrained(
-        "pyannote/speaker-diarization",
-        use_auth_token=hf_token
-    )
+    try:
+        pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization",
+            use_auth_token=hf_token
+        )
+    except Exception as e:
+        print("❌ Failed to load diarization pipeline. Check your Hugging Face token or access.")
+        raise e
+
     diarization = pipeline(audio_path)
 
     # Step 4: Transcribe using Faster-Whisper
@@ -86,5 +94,5 @@ if __name__ == "__main__":
         sys.exit(1)
 
     input_video = sys.argv[1]
-    huggingface_token = None  # Leave as None to read from file
+    huggingface_token = None  # Leave as None to read from HUGGINGFACE_TOKEN.txt
     output_srt = transcribe_with_diarization(input_video, huggingface_token)

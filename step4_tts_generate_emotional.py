@@ -2,7 +2,8 @@ import os
 import torch
 import numpy as np
 from tqdm import tqdm
-from transformers import ParlerTTSForConditionalGeneration, AutoProcessor
+from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
+from transformers import AutoProcessor
 from pydub import AudioSegment
 import srt
 

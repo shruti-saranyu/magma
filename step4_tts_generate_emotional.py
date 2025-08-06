@@ -3,7 +3,7 @@ import sys
 import torch
 import numpy as np
 from tqdm import tqdm
-from transformers import AutoProcessor
+
 from pydub import AudioSegment
 import srt
 
@@ -13,6 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-
 # ✅ Import model & config
 from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
 from parler_tts.configuration_parler_tts import ParlerTTSConfig
+from parler_tts.processing_parler_tts import ParlerTTSProcessor
 
 # 📂 Input/output files
 srt_file = "sample_output_translated_ta.srt"
@@ -38,7 +39,7 @@ model = ParlerTTSForConditionalGeneration.from_pretrained(
     config=config
 ).to(device)
 
-processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
+processor = ParlerTTSProcessor.from_pretrained("ai4bharat/indic-parler-tts")
 sampling_rate = model.config.sampling_rate
 
 # 🧹 Output directory

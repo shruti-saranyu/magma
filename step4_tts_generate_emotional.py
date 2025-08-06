@@ -5,21 +5,13 @@ import soundfile as sf
 from tqdm import tqdm
 from transformers import AutoProcessor, AutoModelForTextToWaveform
 
-# 📦 Load IndicParler-TTS from Hugging Face
-print("📦 Loading IndicParler-TTS model...")
+# 📦 Load Indic-TTS-F5 model from Hugging Face
+print("📦 Loading ai4bharat/indic-tts-f5...")
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model = AutoModelForTextToWaveform.from_pretrained("ai4bharat/indic-parler-tts").to(device)
-processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
+model = AutoModelForTextToWaveform.from_pretrained("ai4bharat/indic-tts-f5").to(device)
+processor = AutoProcessor.from_pretrained("ai4bharat/indic-tts-f5")
 
-# Tamil emotional speaker descriptions
-EMOTIONAL_MALE_PROMPTS = [
-    "a calm Tamil-speaking male",
-    "an excited Tamil-speaking young male",
-    "a sad Tamil-speaking adult male",
-    "an angry Tamil-speaking male",
-    "a happy Tamil-speaking boy"
-]
-
+# Regex to extract speaker labels
 SPEAKER_PATTERN = re.compile(r"^Speaker\s+(\w+):\s*(.+)$")
 os.makedirs("tts_segments", exist_ok=True)
 
@@ -49,22 +41,13 @@ def parse_srt(srt_path):
             i += 1
     return entries
 
-def assign_emotional_prompts(speaker_list):
-    mapping = {}
-    idx = 0
-    for spk in sorted(set(speaker_list)):
-        mapping[spk] = EMOTIONAL_MALE_PROMPTS[idx % len(EMOTIONAL_MALE_PROMPTS)]
-        idx += 1
-    return mapping
-
-def synthesize(entries, speaker_mapping):
-    for i, entry in enumerate(tqdm(entries, desc="🔊 Generating TTS")):
-        description = speaker_mapping.get(entry["speaker"], EMOTIONAL_MALE_PROMPTS[0])
+def synthesize(entries):
+    for i, entry in enumerate(tqdm(entries, desc="🔊 Generating TTS (F5 model)")):
         text = entry["text"]
         output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
         try:
-            inputs = processor(text=text, description=description, language="ta", return_tensors="pt").to(device)
+            inputs = processor(text=text, return_tensors="pt", language="ta").to(device)
             with torch.no_grad():
                 output = model.generate(**inputs)
             audio = output.cpu().numpy().squeeze()
@@ -73,16 +56,9 @@ def synthesize(entries, speaker_mapping):
             print(f"❌ Error in segment {i+1}: {e}")
 
 if __name__ == "__main__":
-    srt_path = "sample_output_translated_ta.srt"  # Replace with your actual file
+    srt_path = "sample_output_translated_ta.srt"  # Replace with your actual SRT path
     entries = parse_srt(srt_path)
 
-    speakers = [e["speaker"] for e in entries]
-    speaker_map = assign_emotional_prompts(speakers)
-
-    print("🗣️ Speaker Prompt Mapping:")
-    for k, v in speaker_map.items():
-        print(f"  Speaker {k} → \"{v}\"")
-
-    synthesize(entries, speaker_map)
-
-    print("✅ All segments saved in: tts_segments/")
+    print("🗣️ Processing entries from:", srt_path)
+    synthesize(entries)
+    print("✅ All TTS segments saved in: tts_segments/")

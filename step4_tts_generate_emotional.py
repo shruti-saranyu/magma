@@ -7,13 +7,14 @@ from transformers import AutoProcessor
 from pydub import AudioSegment
 import srt
 
-# ✅ Add 'parler-tts' directory to sys.path
+# ✅ Add path to local `parler-tts`
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-tts")))
 
-# ✅ Now import the model class from parler_tts package inside parler-tts
+# ✅ Import model & config
 from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
+from parler_tts.configuration_parler_tts import ParlerTTSConfig
 
-# 📂 Input paths
+# 📂 Input/output files
 srt_file = "sample_output_translated_ta.srt"
 output_dir = "tts_segments"
 output_wav = "output.wav"
@@ -22,27 +23,32 @@ output_wav = "output.wav"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Using device: {device}")
 
-# 🧠 Load model
-print("📦 Loading ai4bharat/indic-parler-tts...")
+# 🧠 Load config first (with correct sub-models)
+print("📦 Loading config & model...")
 
-model = ParlerTTSForConditionalGeneration.from_pretrained(
+config = ParlerTTSConfig.from_pretrained(
     "ai4bharat/indic-parler-tts",
     text_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder",
     audio_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder",
     decoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder"
+)
+
+model = ParlerTTSForConditionalGeneration.from_pretrained(
+    "ai4bharat/indic-parler-tts",
+    config=config
 ).to(device)
 
 processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
 sampling_rate = model.config.sampling_rate
 
-# 🧹 Prepare output directory
+# 🧹 Output directory
 os.makedirs(output_dir, exist_ok=True)
 
-# 📖 Read SRT file
+# 📖 Read SRT
 with open(srt_file, "r", encoding="utf-8") as f:
     subtitles = list(srt.parse(f.read()))
 
-# 🔁 TTS generation for each subtitle
+# 🔁 Generate audio per subtitle
 segment_paths = []
 print("🔊 Generating speech segments...")
 
@@ -69,8 +75,8 @@ for i, sub in enumerate(tqdm(subtitles)):
     audio.export(segment_path, format="wav")
     segment_paths.append(segment_path)
 
-# 🔊 Stitch audio segments
-print("🔗 Stitching segments into final audio...")
+# 🔗 Stitch segments
+print("🔗 Stitching audio...")
 combined = AudioSegment.silent(duration=0)
 for path in segment_paths:
     combined += AudioSegment.from_wav(path)

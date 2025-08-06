@@ -6,13 +6,8 @@ from tqdm import tqdm
 from pydub import AudioSegment
 import srt
 
-# ✅ Add path to local `parler-tts`
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-tts")))
-
-# ✅ Import model & config
-from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
-from parler_tts.configuration_parler_tts import ParlerTTSConfig
 from transformers import AutoProcessor, AutoConfig
+from transformers import AutoModelForSpeechSeq2Seq
 
 # 📂 Input/output files
 srt_file = "sample_output_translated_ta.srt"
@@ -23,35 +18,26 @@ output_wav = "output.wav"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Using device: {device}")
 
-# 🧠 Load processor config (to avoid `model_type` error)
-print("📦 Loading processor & model...")
-
-processor_config = AutoConfig.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True)
-processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts", config=processor_config)
-
-# 🧠 Load TTS model config
-config = ParlerTTSConfig.from_pretrained(
-    "ai4bharat/indic-parler-tts",
-    text_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder",
-    audio_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder",
-    decoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder"
-)
-
-model = ParlerTTSForConditionalGeneration.from_pretrained(
-    "ai4bharat/indic-parler-tts",
-    config=config
+# 🧠 Load model & processor from HuggingFace using remote code
+print("📦 Loading model and processor...")
+model = AutoModelForSpeechSeq2Seq.from_pretrained(
+    "ai4bharat/indic-parler-tts", trust_remote_code=True
 ).to(device)
+
+processor = AutoProcessor.from_pretrained(
+    "ai4bharat/indic-parler-tts", trust_remote_code=True
+)
 
 sampling_rate = model.config.sampling_rate
 
-# 🧹 Prepare output directory
+# 🧹 Output directory
 os.makedirs(output_dir, exist_ok=True)
 
-# 📖 Read SRT file
+# 📖 Read SRT
 with open(srt_file, "r", encoding="utf-8") as f:
     subtitles = list(srt.parse(f.read()))
 
-# 🔁 TTS generation for each subtitle
+# 🔁 Generate audio per subtitle
 segment_paths = []
 print("🔊 Generating speech segments...")
 

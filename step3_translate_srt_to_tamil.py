@@ -8,7 +8,7 @@ from langdetect import detect
 
 # === CONFIGURATION ===
 MODEL_NAME = "ai4bharat/indictrans2-indic-indic-1B"
-SOURCE_SRT_PATH = "sample_output_speakers.srt"
+SOURCE_SRT_PATH = "sample_output.srt"
 TARGET_SRT_PATH = "sample_output_translated_ta.srt"
 TARGET_LANG_TAG = "<2ta>"  # Tamil
 HUGGINGFACE_TOKEN_PATH = "HUGGINGFACE_TOKEN.txt"

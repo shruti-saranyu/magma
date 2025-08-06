@@ -3,14 +3,13 @@ import re
 import torch
 import soundfile as sf
 from tqdm import tqdm
+from transformers import AutoProcessor, AutoModelForTextToWaveform
 
-from parler_tts import ParlerTTS  # Uses Hugging Face package
-from parler_tts.audio_utils import load_audio
-
-# 📦 Load IndicParler-TTS model from Hugging Face (no local flash-attn dependency)
-print("📦 Loading IndicParler-TTS model from Hugging Face...")
+# 📦 Load IndicParler-TTS from Hugging Face
+print("📦 Loading IndicParler-TTS model...")
 device = "cuda" if torch.cuda.is_available() else "cpu"
-tts = ParlerTTS.from_pretrained("ai4bharat/indic-parler-tts", device=device)
+model = AutoModelForTextToWaveform.from_pretrained("ai4bharat/indic-parler-tts").to(device)
+processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
 
 # Tamil emotional speaker descriptions
 EMOTIONAL_MALE_PROMPTS = [
@@ -65,13 +64,11 @@ def synthesize(entries, speaker_mapping):
         output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
         try:
-            wav = tts.synthesize(
-                text=text,
-                speaker="ta_male",
-                language="ta",
-                description=description,
-            )
-            sf.write(output_path, wav, 16000)
+            inputs = processor(text=text, description=description, language="ta", return_tensors="pt").to(device)
+            with torch.no_grad():
+                output = model.generate(**inputs)
+            audio = output.cpu().numpy().squeeze()
+            sf.write(output_path, audio, 16000)
         except Exception as e:
             print(f"❌ Error in segment {i+1}: {e}")
 

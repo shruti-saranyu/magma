@@ -43,8 +43,8 @@ def translate(text, tgt_lang=TGT_LANG):
     """Translate a single line using IndicTrans2 with auto source language detection."""
     src_lang = detect_src_lang(text)
 
-    # Add language tags as expected by the model
-    tagged_text = f"<2{tgt_lang}> <{src_lang}> {text}"
+    # CORRECT order: <src_lang> <2tgt_lang>
+    tagged_text = f"<{src_lang}> <2{tgt_lang}> {text}"
 
     inputs = tokenizer(
         tagged_text,

@@ -4,14 +4,15 @@ import torch
 import soundfile as sf
 from tqdm import tqdm
 
-from parler_tts import ParlerTTS  # Local import if cloned
+from parler_tts import ParlerTTS  # Uses Hugging Face package
 from parler_tts.audio_utils import load_audio
 
-# 📦 Load IndicParler-TTS model (local)
-print("📦 Loading IndicParler-TTS model locally...")
-tts = ParlerTTS.from_pretrained("ai4bharat/indic-parler-tts", device="cuda" if torch.cuda.is_available() else "cpu")
+# 📦 Load IndicParler-TTS model from Hugging Face (no local flash-attn dependency)
+print("📦 Loading IndicParler-TTS model from Hugging Face...")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+tts = ParlerTTS.from_pretrained("ai4bharat/indic-parler-tts", device=device)
 
-# Tamil emotional descriptions
+# Tamil emotional speaker descriptions
 EMOTIONAL_MALE_PROMPTS = [
     "a calm Tamil-speaking male",
     "an excited Tamil-speaking young male",

@@ -2,16 +2,11 @@ import os
 import torch
 import numpy as np
 from tqdm import tqdm
-from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
-from parler_tts.configuration_parler_tts import (
-    ParlerTTSConfig,
-    ParlerTTSConfigTextEncoder,
-    ParlerTTSConfigAudioEncoder,
-    ParlerTTSConfigDecoder
-)
-from transformers import AutoProcessor
 from pydub import AudioSegment
 import srt
+
+from transformers import AutoProcessor
+from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
 
 # 📂 Input paths
 srt_file = "sample_output_translated_ta.srt"
@@ -22,24 +17,14 @@ output_wav = "output.wav"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Using device: {device}")
 
-# 📦 Load model with full config
+# 🧠 Load model
 print("📦 Loading ai4bharat/indic-parler-tts...")
-
-config = ParlerTTSConfig(
-    text_encoder=ParlerTTSConfigTextEncoder(
-        pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder"
-    ),
-    audio_encoder=ParlerTTSConfigAudioEncoder(
-        pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder"
-    ),
-    decoder=ParlerTTSConfigDecoder(
-        pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder"
-    )
-)
 
 model = ParlerTTSForConditionalGeneration.from_pretrained(
     "ai4bharat/indic-parler-tts",
-    config=config
+    text_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder",
+    audio_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder",
+    decoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder"
 ).to(device)
 
 processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
@@ -61,18 +46,16 @@ for i, sub in enumerate(tqdm(subtitles)):
     if not text:
         continue
 
-    # Generate audio
     inputs = processor(text=[text], return_tensors="pt").to(device)
     with torch.no_grad():
         generated = model.generate(**inputs, do_sample=True)
 
-    # Convert to numpy array and normalize
     waveform = generated.cpu().numpy().squeeze()
     waveform = np.clip(waveform, -1, 1)
 
-    # Save as WAV using PyDub
     segment_path = os.path.join(output_dir, f"segment_{i:04d}.wav")
     waveform_int = (waveform * 32767).astype(np.int16)
+
     audio = AudioSegment(
         waveform_int.tobytes(),
         frame_rate=sampling_rate,

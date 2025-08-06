@@ -18,7 +18,9 @@ print(f"🚀 Using device: {device}")
 
 # 🧠 Load model
 print("📦 Loading ai4bharat/indic-parler-tts...")
-model = ParlerTTSForConditionalGeneration.from_pretrained("ai4bharat/indic-parler-tts").to(device)
+model = ParlerTTSForConditionalGeneration.from_pretrained("ai4bharat/indic-parler-tts",text_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder",
+    audio_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder",
+    decoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder").to(device)
 processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
 sampling_rate = model.config.sampling_rate
 

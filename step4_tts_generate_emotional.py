@@ -21,8 +21,8 @@ print(f"🚀 Using device: {device}")
 
 print("📦 Loading ai4bharat/indic-parler-tts...")
 
-config = ParlerTTSConfig.from_pretrained(
-    "ai4bharat/indic-parler-tts",
+# Correct config
+config = ParlerTTSConfig(
     text_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder",
     audio_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder",
     decoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder"
@@ -34,6 +34,8 @@ model = ParlerTTSForConditionalGeneration.from_pretrained(
 ).to(device)
 
 processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
+sampling_rate = model.config.sampling_rate  # ✅ Add this line
+
 # 🧹 Prepare output directory
 os.makedirs(output_dir, exist_ok=True)
 

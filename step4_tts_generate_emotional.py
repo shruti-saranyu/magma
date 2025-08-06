@@ -3,7 +3,6 @@ import sys
 import torch
 import numpy as np
 from tqdm import tqdm
-
 from pydub import AudioSegment
 import srt
 
@@ -13,7 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-
 # ✅ Import model & config
 from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
 from parler_tts.configuration_parler_tts import ParlerTTSConfig
-from parler_tts.processing_parler_tts import ParlerTTSProcessor
+from transformers import AutoProcessor, AutoConfig
 
 # 📂 Input/output files
 srt_file = "sample_output_translated_ta.srt"
@@ -24,9 +23,13 @@ output_wav = "output.wav"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Using device: {device}")
 
-# 🧠 Load config first (with correct sub-models)
-print("📦 Loading config & model...")
+# 🧠 Load processor config (to avoid `model_type` error)
+print("📦 Loading processor & model...")
 
+processor_config = AutoConfig.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True)
+processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts", config=processor_config)
+
+# 🧠 Load TTS model config
 config = ParlerTTSConfig.from_pretrained(
     "ai4bharat/indic-parler-tts",
     text_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder",
@@ -39,17 +42,16 @@ model = ParlerTTSForConditionalGeneration.from_pretrained(
     config=config
 ).to(device)
 
-processor = ParlerTTSProcessor.from_pretrained("ai4bharat/indic-parler-tts")
 sampling_rate = model.config.sampling_rate
 
-# 🧹 Output directory
+# 🧹 Prepare output directory
 os.makedirs(output_dir, exist_ok=True)
 
-# 📖 Read SRT
+# 📖 Read SRT file
 with open(srt_file, "r", encoding="utf-8") as f:
     subtitles = list(srt.parse(f.read()))
 
-# 🔁 Generate audio per subtitle
+# 🔁 TTS generation for each subtitle
 segment_paths = []
 print("🔊 Generating speech segments...")
 

@@ -1,64 +1,57 @@
 import os
-import re
 import torch
-import soundfile as sf
+import subprocess
 from tqdm import tqdm
-from transformers import AutoProcessor, AutoModelForTextToWaveform
+from transformers import AutoModelForTextToWaveform, AutoProcessor
+from pydub import AudioSegment
+import srt
 
-# ✅ Use ai4bharat/indic-tts (multilingual model)
-print("📦 Loading ai4bharat/indic-tts...")
+# 📂 Input paths
+srt_file = "sample_output_translated_ta.srt"   # Tamil SRT with speaker labels
+output_dir = "tts_segments"
+output_wav = "output.wav"
+
+# 🧠 Load IndicParler-TTS model
+print("📦 Loading ai4bharat/indic-parler-tts...")
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model = AutoModelForTextToWaveform.from_pretrained("ai4bharat/indic-tts").to(device)
-processor = AutoProcessor.from_pretrained("ai4bharat/indic-tts")
+model = AutoModelForTextToWaveform.from_pretrained("ai4bharat/indic-parler-tts").to(device)
+processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
 
-SPEAKER_PATTERN = re.compile(r"^Speaker\s+(\w+):\s*(.+)$")
-os.makedirs("tts_segments", exist_ok=True)
+# 🧹 Cleanup and prepare output dir
+os.makedirs(output_dir, exist_ok=True)
 
-def parse_srt(srt_path):
-    with open(srt_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+# 📖 Read SRT file
+with open(srt_file, "r", encoding="utf-8") as f:
+    subtitles = list(srt.parse(f.read()))
 
-    entries = []
-    i = 0
-    while i < len(lines):
-        if lines[i].strip().isdigit():
-            start_end = lines[i+1].strip()
-            text_line = lines[i+2].strip()
-            match = SPEAKER_PATTERN.match(text_line)
+# 🔁 TTS generation for each subtitle
+segment_paths = []
 
-            speaker = match.group(1) if match else "Unknown"
-            text = match.group(2) if match else text_line
+print("🔊 Generating speech segments...")
+for i, sub in enumerate(tqdm(subtitles)):
+    text = sub.content.strip()
+    if not text:
+        continue
 
-            entries.append({
-                "index": lines[i].strip(),
-                "start_end": start_end,
-                "speaker": speaker,
-                "text": text
-            })
-            i += 4
-        else:
-            i += 1
-    return entries
+    inputs = processor(text=[text], return_tensors="pt").to(device)
+    with torch.no_grad():
+        waveform = model(**inputs).waveform[0].cpu()
 
-def synthesize(entries):
-    for i, entry in enumerate(tqdm(entries, desc="🔊 Generating TTS")):
-        text = entry["text"]
-        output_path = f"tts_segments/segment_{i+1:04d}.wav"
+    segment_path = os.path.join(output_dir, f"segment_{i:04d}.wav")
+    processor.save_wav(waveform, segment_path, sampling_rate=16000)
+    segment_paths.append(segment_path)
 
-        try:
-            inputs = processor(text=text, return_tensors="pt", language="ta").to(device)
-            with torch.no_grad():
-                output = model.generate(**inputs)
-            audio = output.cpu().numpy().squeeze()
-            sf.write(output_path, audio, 16000)
-        except Exception as e:
-            print(f"❌ Error in segment {i+1}: {e}")
+# 🔊 Stitch audio segments
+print("🔗 Stitching segments into final audio...")
+combined = AudioSegment.silent(duration=0)
+for segment in segment_paths:
+    audio = AudioSegment.from_wav(segment)
+    combined += audio
 
-if __name__ == "__main__":
-    srt_path = "sample_output_translated_ta.srt"  # Replace with your actual path
-    entries = parse_srt(srt_path)
+combined.export(output_wav, format="wav")
+print(f"✅ Output audio saved to {output_wav}")
 
-    print("🗣️ Parsed", len(entries), "entries from SRT.")
-    synthesize(entries)
-
-    print("✅ All segments saved in: tts_segments/")
+# 🧽 Clean up intermediate files
+for path in segment_paths:
+    os.remove(path)
+os.rmdir(output_dir)

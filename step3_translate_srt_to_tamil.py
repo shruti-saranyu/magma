@@ -43,14 +43,15 @@ def translate(text, tgt_lang=TGT_LANG):
     """Translate a single line using IndicTrans2 with auto source language detection."""
     src_lang = detect_src_lang(text)
 
+    # Add language tags as expected by the model
+    tagged_text = f"<2{tgt_lang}> <{src_lang}> {text}"
+
     inputs = tokenizer(
-        text,
+        tagged_text,
         return_tensors="pt",
         padding=True,
         truncation=True,
-        max_length=512,
-        src_lang=src_lang,
-        tgt_lang=tgt_lang
+        max_length=512
     ).to(DEVICE)
 
     generated_tokens = model.generate(
@@ -58,6 +59,7 @@ def translate(text, tgt_lang=TGT_LANG):
         max_length=512
     )
     return tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
+
 
 def translate_srt(input_srt_path, output_srt_path):
     """Translate subtitles from an SRT file and preserve structure."""

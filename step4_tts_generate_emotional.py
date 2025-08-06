@@ -7,11 +7,11 @@ from transformers import AutoProcessor
 from pydub import AudioSegment
 import srt
 
-# 🛠️ Add path to the folder containing modeling_parler_tts.py
-sys.path.append("/root/shruti_test/magma/parler_tts")  # ✅ Adjust if file is in a different folder
+# ✅ Add 'parler-tts' directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-tts")))
 
-# ✅ Now import the class
-from modeling_parler_tts import ParlerTTSForConditionalGeneration
+# ✅ Now import the model class from parler_tts package inside parler-tts
+from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
 
 # 📂 Input paths
 srt_file = "sample_output_translated_ta.srt"

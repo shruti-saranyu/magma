@@ -6,58 +6,51 @@ from tqdm import tqdm
 from pydub import AudioSegment
 import srt
 
-# ✅ Add path to local `parler-tts`
+# ✅ Add path to local `parler-tts` repo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-tts")))
 
-# ✅ Import from local parler_tts
+# ✅ Import model and config from local repo
 from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
-from parler_tts.configuration_parler_tts import (
-    ParlerTTSConfig,
-    ParlerTTSConfigTextEncoder,
-    ParlerTTSConfigAudioEncoder,
-    ParlerTTSConfigDecoder,
-)
+from parler_tts.configuration_parler_tts import ParlerTTSConfig
 from transformers import AutoProcessor
 
-# 📂 Input/output
+# 📂 Input/output files
 srt_file = "sample_output_translated_ta.srt"
 output_dir = "tts_segments"
 output_wav = "output.wav"
 
-# 🚀 Device
+# 🚀 Device setup
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Using device: {device}")
 
-# 🧠 Load config with required sub-configs
+# 🧠 Load model and config with sub-models
 print("📦 Loading model & config...")
-config = ParlerTTSConfig(
-    text_encoder=ParlerTTSConfigTextEncoder(
-        pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder"
-    ),
-    audio_encoder=ParlerTTSConfigAudioEncoder(
-        pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder"
-    ),
-    decoder=ParlerTTSConfigDecoder(
-        pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder"
-    )
+
+config = ParlerTTSConfig.from_pretrained(
+    "ai4bharat/indic-parler-tts",
+    trust_remote_code=True,
+    text_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder",
+    audio_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder",
+    decoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder"
 )
 
 model = ParlerTTSForConditionalGeneration.from_pretrained(
     "ai4bharat/indic-parler-tts",
-    config=config
+    config=config,
+    trust_remote_code=True
 ).to(device)
 
-processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
+processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True)
 sampling_rate = model.config.sampling_rate
 
-# 🧹 Create output dir
+# 🧹 Prepare output directory
 os.makedirs(output_dir, exist_ok=True)
 
 # 📖 Read SRT
 with open(srt_file, "r", encoding="utf-8") as f:
     subtitles = list(srt.parse(f.read()))
 
-# 🔁 Generate audio
+# 🔁 Generate audio per subtitle
 segment_paths = []
 print("🔊 Generating speech segments...")
 
@@ -73,7 +66,6 @@ for i, sub in enumerate(tqdm(subtitles)):
     waveform = generated.cpu().numpy().squeeze()
     waveform = np.clip(waveform, -1, 1)
 
-    # Save segment
     segment_path = os.path.join(output_dir, f"segment_{i:04d}.wav")
     waveform_int = (waveform * 32767).astype(np.int16)
     audio = AudioSegment(

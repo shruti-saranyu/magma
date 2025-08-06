@@ -6,39 +6,61 @@ from tqdm import tqdm
 from pydub import AudioSegment
 import srt
 
-# ✅ Add path to local `parler-tts` repo
+# Add path to local `parler-tts`
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-tts")))
 
-# ✅ Import only needed classes
 from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
-from parler_tts.configuration_parler_tts import ParlerTTSConfig
+from parler_tts.configuration_parler_tts import (
+    ParlerTTSConfig,
+    ParlerTTSConfigTextEncoder,
+    ParlerTTSConfigAudioEncoder,
+    ParlerTTSConfigDecoder
+)
 from transformers import AutoProcessor
 
-# 📂 Input/output files
+# Paths
 srt_file = "sample_output_translated_ta.srt"
 output_dir = "tts_segments"
 output_wav = "output.wav"
 
-# 🚀 Device setup
+# Device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Using device: {device}")
 
-# 📦 Load model and processor
-print("📦 Loading model and processor...")
-model = ParlerTTSForConditionalGeneration.from_pretrained("ai4bharat/indic-parler-tts").to(device)
+# Load individual sub-model configs
+print("📦 Loading configs...")
+text_encoder_cfg = ParlerTTSConfigTextEncoder.from_pretrained("ai4bharat/indic-parler-tts-text-encoder")
+audio_encoder_cfg = ParlerTTSConfigAudioEncoder.from_pretrained("ai4bharat/indic-parler-tts-audio-encoder")
+decoder_cfg = ParlerTTSConfigDecoder.from_pretrained("ai4bharat/indic-parler-tts-decoder")
+
+# Compose full config
+config = ParlerTTSConfig(
+    text_encoder=text_encoder_cfg,
+    audio_encoder=audio_encoder_cfg,
+    decoder=decoder_cfg
+)
+
+# Load model
+print("🔁 Loading model...")
+model = ParlerTTSForConditionalGeneration.from_pretrained(
+    "ai4bharat/indic-parler-tts",
+    config=config
+).to(device)
+
+# Load processor
 processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
 sampling_rate = model.config.sampling_rate
 
-# 🧹 Prepare output directory
+# Create output dir
 os.makedirs(output_dir, exist_ok=True)
 
-# 📖 Read SRT
+# Read SRT
 with open(srt_file, "r", encoding="utf-8") as f:
     subtitles = list(srt.parse(f.read()))
 
-# 🔊 Generate speech per subtitle
-segment_paths = []
+# Generate audio segments
 print("🔊 Generating speech segments...")
+segment_paths = []
 
 for i, sub in enumerate(tqdm(subtitles)):
     text = sub.content.strip()
@@ -46,6 +68,7 @@ for i, sub in enumerate(tqdm(subtitles)):
         continue
 
     inputs = processor(text=[text], return_tensors="pt").to(device)
+
     with torch.no_grad():
         generated = model.generate(**inputs, do_sample=True)
 
@@ -63,16 +86,16 @@ for i, sub in enumerate(tqdm(subtitles)):
     audio.export(segment_path, format="wav")
     segment_paths.append(segment_path)
 
-# 🔗 Stitch segments together
+# Stitch together
 print("🔗 Stitching audio...")
 combined = AudioSegment.silent(duration=0)
 for path in segment_paths:
     combined += AudioSegment.from_wav(path)
 
 combined.export(output_wav, format="wav")
-print(f"✅ Final output saved at: {output_wav}")
+print(f"✅ Output saved to {output_wav}")
 
-# 🧽 Cleanup
+# Cleanup
 for path in segment_paths:
     os.remove(path)
 os.rmdir(output_dir)

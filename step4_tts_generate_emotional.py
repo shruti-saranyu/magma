@@ -13,12 +13,13 @@ output_wav = "output.wav"
 
 # 🚀 Device setup
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Using device: {device}")
+print(f"🚀 Using device: {device}")
 
-# 🧠 Load model with updated architecture
+# 🧠 Load model
 print("📦 Loading ai4bharat/indic-parler-tts...")
 model = ParlerTTSForConditionalGeneration.from_pretrained("ai4bharat/indic-parler-tts").to(device)
 processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
+sampling_rate = model.config.sampling_rate
 
 # 🧹 Prepare output directory
 os.makedirs(output_dir, exist_ok=True)
@@ -36,7 +37,7 @@ for i, sub in enumerate(tqdm(subtitles)):
     if not text:
         continue
 
-    # Generate audio with proper sampling
+    # Generate audio
     inputs = processor(text=[text], return_tensors="pt").to(device)
     with torch.no_grad():
         generated = model.generate(**inputs, do_sample=True)
@@ -45,12 +46,12 @@ for i, sub in enumerate(tqdm(subtitles)):
     waveform = generated.cpu().numpy().squeeze()
     waveform = np.clip(waveform, -1, 1)  # Prevent clipping
     
-    # Save as WAV using pydub
+    # Save as WAV using PyDub
     segment_path = os.path.join(output_dir, f"segment_{i:04d}.wav")
     waveform_int = (waveform * 32767).astype(np.int16)
     audio = AudioSegment(
         waveform_int.tobytes(),
-        frame_rate=16000,
+        frame_rate=sampling_rate,
         sample_width=2,
         channels=1
     )

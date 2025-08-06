@@ -9,10 +9,9 @@ import srt
 # ✅ Add path to local `parler-tts` repo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-tts")))
 
-# ✅ Import model and config
+# ✅ Import only needed classes
 from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
 from parler_tts.configuration_parler_tts import ParlerTTSConfig
-
 from transformers import AutoProcessor
 
 # 📂 Input/output files
@@ -22,7 +21,7 @@ output_wav = "output.wav"
 
 # 🚀 Device setup
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"\n🚀 Using device: {device}\n")
+print(f"🚀 Using device: {device}")
 
 # 📦 Load model and processor
 print("📦 Loading model and processor...")
@@ -37,9 +36,9 @@ os.makedirs(output_dir, exist_ok=True)
 with open(srt_file, "r", encoding="utf-8") as f:
     subtitles = list(srt.parse(f.read()))
 
-# 🔁 Generate audio per subtitle
+# 🔊 Generate speech per subtitle
 segment_paths = []
-print("\n🔊 Generating speech segments...")
+print("🔊 Generating speech segments...")
 
 for i, sub in enumerate(tqdm(subtitles)):
     text = sub.content.strip()
@@ -64,14 +63,14 @@ for i, sub in enumerate(tqdm(subtitles)):
     audio.export(segment_path, format="wav")
     segment_paths.append(segment_path)
 
-# 🔗 Stitch segments
-print("\n🔗 Stitching audio...")
+# 🔗 Stitch segments together
+print("🔗 Stitching audio...")
 combined = AudioSegment.silent(duration=0)
 for path in segment_paths:
     combined += AudioSegment.from_wav(path)
 
 combined.export(output_wav, format="wav")
-print(f"\n✅ Output saved to {output_wav}\n")
+print(f"✅ Final output saved at: {output_wav}")
 
 # 🧽 Cleanup
 for path in segment_paths:

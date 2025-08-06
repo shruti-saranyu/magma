@@ -1,25 +1,22 @@
 import os
-import sys
 import torch
 import numpy as np
 from tqdm import tqdm
 from pydub import AudioSegment
 import srt
 
-from transformers import AutoProcessor, AutoConfig
-from transformers import AutoModelForSpeechSeq2Seq
+from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
 
-# 📂 Input/output files
+# 📂 Input/output
 srt_file = "sample_output_translated_ta.srt"
 output_dir = "tts_segments"
 output_wav = "output.wav"
 
-# 🚀 Device setup
+# 🚀 Device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Using device: {device}")
 
-# 🧠 Load model & processor from HuggingFace using remote code
-print("📦 Loading model and processor...")
+# 🧠 Load model & processor from HF Hub
 model = AutoModelForSpeechSeq2Seq.from_pretrained(
     "ai4bharat/indic-parler-tts", trust_remote_code=True
 ).to(device)
@@ -30,16 +27,16 @@ processor = AutoProcessor.from_pretrained(
 
 sampling_rate = model.config.sampling_rate
 
-# 🧹 Output directory
+# 📁 Output dir
 os.makedirs(output_dir, exist_ok=True)
 
-# 📖 Read SRT
+# 📖 Parse SRT
 with open(srt_file, "r", encoding="utf-8") as f:
     subtitles = list(srt.parse(f.read()))
 
-# 🔁 Generate audio per subtitle
+# 🔁 Generate audio segments
 segment_paths = []
-print("🔊 Generating speech segments...")
+print("🔊 Generating speech...")
 
 for i, sub in enumerate(tqdm(subtitles)):
     text = sub.content.strip()
@@ -48,23 +45,20 @@ for i, sub in enumerate(tqdm(subtitles)):
 
     inputs = processor(text=[text], return_tensors="pt").to(device)
     with torch.no_grad():
-        generated = model.generate(**inputs, do_sample=True)
+        output = model.generate(**inputs, do_sample=True)
 
-    waveform = generated.cpu().numpy().squeeze()
+    waveform = output.cpu().numpy().squeeze()
     waveform = np.clip(waveform, -1, 1)
 
     segment_path = os.path.join(output_dir, f"segment_{i:04d}.wav")
     waveform_int = (waveform * 32767).astype(np.int16)
     audio = AudioSegment(
-        waveform_int.tobytes(),
-        frame_rate=sampling_rate,
-        sample_width=2,
-        channels=1
+        waveform_int.tobytes(), frame_rate=sampling_rate, sample_width=2, channels=1
     )
     audio.export(segment_path, format="wav")
     segment_paths.append(segment_path)
 
-# 🔗 Stitch segments
+# 🔗 Stitch audio
 print("🔗 Stitching audio...")
 combined = AudioSegment.silent(duration=0)
 for path in segment_paths:

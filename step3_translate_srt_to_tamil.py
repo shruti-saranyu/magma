@@ -15,7 +15,7 @@ with open("HUGGINGFACE_TOKEN.txt") as f:
 login(token)
 
 # Model and tokenizer
-MODEL_NAME = "ai4bharat/indictrans2-en-indic-1B"
+MODEL_NAME = "ai4bharat/indictrans2-multilingual-v1.0"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
 

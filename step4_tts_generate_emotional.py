@@ -1,11 +1,15 @@
 import os
+import sys
+sys.path.append("./parler_tts")
+
 import torch
 import numpy as np
 from tqdm import tqdm
-from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
+from modeling_parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoProcessor
 from pydub import AudioSegment
 import srt
+
 
 # 📂 Input paths
 srt_file = "sample_output_translated_ta.srt"

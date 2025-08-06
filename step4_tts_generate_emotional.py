@@ -9,9 +9,14 @@ import srt
 # ✅ Add path to local `parler-tts` repo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-tts")))
 
-# ✅ Import model and config from local repo
+# ✅ Import model and full config from local parler_tts
 from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
-from parler_tts.configuration_parler_tts import ParlerTTSConfig
+from parler_tts.configuration_parler_tts import (
+    ParlerTTSConfig,
+    ParlerTTSConfigTextEncoder,
+    ParlerTTSConfigAudioEncoder,
+    ParlerTTSConfigDecoder
+)
 from transformers import AutoProcessor
 
 # 📂 Input/output files
@@ -23,24 +28,27 @@ output_wav = "output.wav"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Using device: {device}")
 
-# 🧠 Load model and config with sub-models
+# 📦 Load sub-model configs first, then assemble full config
 print("📦 Loading model & config...")
 
-config = ParlerTTSConfig.from_pretrained(
-    "ai4bharat/indic-parler-tts",
-    trust_remote_code=True,
-    text_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder",
-    audio_encoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder",
-    decoder_pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder"
+text_encoder_cfg = ParlerTTSConfigTextEncoder.from_pretrained("ai4bharat/indic-parler-tts-text-encoder")
+audio_encoder_cfg = ParlerTTSConfigAudioEncoder.from_pretrained("ai4bharat/indic-parler-tts-audio-encoder")
+decoder_cfg = ParlerTTSConfigDecoder.from_pretrained("ai4bharat/indic-parler-tts-decoder")
+
+config = ParlerTTSConfig(
+    text_encoder=text_encoder_cfg,
+    audio_encoder=audio_encoder_cfg,
+    decoder=decoder_cfg
 )
 
+# 🔁 Load model
 model = ParlerTTSForConditionalGeneration.from_pretrained(
     "ai4bharat/indic-parler-tts",
-    config=config,
-    trust_remote_code=True
+    config=config
 ).to(device)
 
-processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts", trust_remote_code=True)
+# 🗣️ Load processor
+processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
 sampling_rate = model.config.sampling_rate
 
 # 🧹 Prepare output directory

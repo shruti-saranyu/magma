@@ -4,6 +4,7 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
 from tqdm import tqdm
 from huggingface_hub import login
+from langdetect import detect
 
 # Device setup
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -13,20 +14,35 @@ with open("HUGGINGFACE_TOKEN.txt") as f:
     token = f.read().strip()
 login(token)
 
-# Correct model: Multilingual English → Indic (including Tamil)
+# Model and tokenizer
 MODEL_NAME = "ai4bharat/indictrans2-en-indic-1B"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
 
-# Language codes
-SRC_LANG = "en"  # Source language (English)
-TGT_LANG = "ta"  # Target language (Tamil)
+# Target language
+TGT_LANG = "ta"  # Tamil
+
+# Supported source language mapping (from langdetect to model tags)
+LANG_MAP = {
+    "en": "en",
+    "hi": "hi",
+    "ur": "ur"
+}
 
 # SRT timestamp pattern
 TIMESTAMP_PATTERN = re.compile(r"(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})")
 
-def translate(text, src_lang=SRC_LANG, tgt_lang=TGT_LANG):
-    """Translate a single line using IndicTrans2."""
+def detect_src_lang(text):
+    try:
+        lang_code = detect(text)
+        return LANG_MAP.get(lang_code, "en")  # default to English if unknown
+    except Exception:
+        return "en"
+
+def translate(text, tgt_lang=TGT_LANG):
+    """Translate a single line using IndicTrans2 with auto source language detection."""
+    src_lang = detect_src_lang(text)
+
     inputs = tokenizer(
         text,
         return_tensors="pt",

@@ -26,7 +26,7 @@ TGT_LANG = "ta"  # Tamil
 LANG_MAP = {
     "en": "en",
     "hi": "hi",
-    "ur": "ur"
+    "ur": "hi"
 }
 
 # SRT timestamp pattern
@@ -34,10 +34,11 @@ TIMESTAMP_PATTERN = re.compile(r"(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2
 
 def detect_src_lang(text):
     try:
-        lang_code = detect(text)
-        return LANG_MAP.get(lang_code, "en")  # default to English if unknown
-    except Exception:
+        lang = detect(text)
+        return LANG_MAP.get(lang, "en")
+    except:
         return "en"
+
 
 def translate(text, tgt_lang=TGT_LANG):
     """Translate a single line using IndicTrans2 with auto source language detection."""

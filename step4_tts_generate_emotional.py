@@ -9,57 +9,35 @@ import srt
 # ✅ Add path to local `parler-tts`
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "parler-tts")))
 
-# ✅ Import local modules
+# ✅ Import model and config
 from parler_tts.modeling_parler_tts import ParlerTTSForConditionalGeneration
-from parler_tts.configuration_parler_tts import (
-    ParlerTTSConfig,
-    ParlerTTSConfigTextEncoder,
-    ParlerTTSConfigAudioEncoder,
-    ParlerTTSConfigDecoder,
-)
+from parler_tts.configuration_parler_tts import ParlerTTSConfig
 from transformers import AutoProcessor
 
-# 📂 Input/output
+# 📂 Input/output paths
 srt_file = "sample_output_translated_ta.srt"
 output_dir = "tts_segments"
 output_wav = "output.wav"
 
-# 🚀 Device
+# 🚀 Device setup
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Using device: {device}")
 
-# 🧠 Load config and model
-print("📦 Loading model & config...")
+# 🧠 Load model and processor
+print("📦 Loading model & processor...")
 
-# 🧩 Create sub-configs manually
-config = ParlerTTSConfig(
-    text_encoder=ParlerTTSConfigTextEncoder(
-        pretrained_model_name_or_path="ai4bharat/indic-parler-tts-text-encoder"
-    ),
-    audio_encoder=ParlerTTSConfigAudioEncoder(
-        pretrained_model_name_or_path="ai4bharat/indic-parler-tts-audio-encoder"
-    ),
-    decoder=ParlerTTSConfigDecoder(
-        pretrained_model_name_or_path="ai4bharat/indic-parler-tts-decoder"
-    )
-)
-
-model = ParlerTTSForConditionalGeneration.from_pretrained(
-    "ai4bharat/indic-parler-tts",
-    config=config
-).to(device)
-
+model = ParlerTTSForConditionalGeneration.from_pretrained("ai4bharat/indic-parler-tts").to(device)
 processor = AutoProcessor.from_pretrained("ai4bharat/indic-parler-tts")
 sampling_rate = model.config.sampling_rate
 
-# 🧹 Prepare output dir
+# 🧹 Create output directory
 os.makedirs(output_dir, exist_ok=True)
 
-# 📖 Read SRT
+# 📖 Read subtitles
 with open(srt_file, "r", encoding="utf-8") as f:
     subtitles = list(srt.parse(f.read()))
 
-# 🔁 Generate speech per line
+# 🔁 Generate speech
 segment_paths = []
 print("🔊 Generating audio segments...")
 
@@ -69,7 +47,6 @@ for i, sub in enumerate(tqdm(subtitles)):
         continue
 
     inputs = processor(text=[text], return_tensors="pt").to(device)
-
     with torch.no_grad():
         output = model.generate(**inputs, do_sample=True)
 

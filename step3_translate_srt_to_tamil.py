@@ -1,105 +1,88 @@
 import os
-import re
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
+import srt
 from tqdm import tqdm
-from huggingface_hub import login
+import datetime
 from langdetect import detect
 
-# Device setup
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# === CONFIGURATION ===
+MODEL_NAME = "ai4bharat/indictrans2-indic-indic-1B"
+SOURCE_SRT_PATH = "sample_output_speakers.srt"
+TARGET_SRT_PATH = "sample_output_translated_ta.srt"
+TARGET_LANG_TAG = "<2ta>"  # Tamil
+HUGGINGFACE_TOKEN_PATH = "HUGGINGFACE_TOKEN.txt"
 
-# Load Hugging Face token
-with open("HUGGINGFACE_TOKEN.txt") as f:
-    token = f.read().strip()
-login(token)
+# === LOAD TOKEN ===
+with open(HUGGINGFACE_TOKEN_PATH, "r") as f:
+    hf_token = f.read().strip()
 
-# Model and tokenizer
-MODEL_NAME = "ai4bharat/indictrans2-multilingual-v1.0"
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
+# === LOAD TOKENIZER & MODEL ===
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=hf_token, trust_remote_code=True)
+model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, token=hf_token, trust_remote_code=True)
+model.eval()
 
-# Target language
-TGT_LANG = "ta"  # Tamil
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
 
-# Supported source language mapping (from langdetect to model tags)
-LANG_MAP = {
-    "en": "en",
-    "hi": "hi",
-    "ur": "hi"
-}
-
-# SRT timestamp pattern
-TIMESTAMP_PATTERN = re.compile(r"(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})")
-
-def detect_src_lang(text):
+# === HELPERS ===
+def detect_lang(text):
     try:
-        lang = detect(text)
-        return LANG_MAP.get(lang, "en")
+        return detect(text)
     except:
         return "en"
 
+def add_tags(text, source_lang):
+    if not text.strip():
+        return text
+    return f"<{source_lang}> {TARGET_LANG_TAG} {text}"
 
-def translate(text, tgt_lang=TGT_LANG):
-    """Translate a single line using IndicTrans2 with auto source language detection."""
-    src_lang = detect_src_lang(text)
+def translate(text):
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True).to(device)
+    with torch.no_grad():
+        output_ids = model.generate(
+            **inputs,
+            max_length=512,
+            num_beams=5,
+            early_stopping=True
+        )
+    return tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
 
-    # CORRECT order: <src_lang> <2tgt_lang>
-    tagged_text = f"<{src_lang}> <2{tgt_lang}> {text}"
+# === PROCESS SRT ===
+with open(SOURCE_SRT_PATH, "r", encoding="utf-8") as f:
+    original_subs = list(srt.parse(f.read()))
 
-    inputs = tokenizer(
-        tagged_text,
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=512
-    ).to(DEVICE)
+translated_subs = []
 
-    generated_tokens = model.generate(
-        **inputs,
-        max_length=512
-    )
-    return tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
+for sub in tqdm(original_subs, desc="Translating"):
+    raw_text = sub.content.strip()
+    
+    if not raw_text:
+        translated_subs.append(sub)
+        continue
 
+    # Detect language for tagging
+    lang = detect_lang(raw_text)
+    if lang == "ur":
+        source_lang_tag = "ur"
+    elif lang == "hi":
+        source_lang_tag = "hi"
+    elif lang == "en":
+        source_lang_tag = "en"
+    else:
+        source_lang_tag = "hi"  # fallback
 
-def translate_srt(input_srt_path, output_srt_path):
-    """Translate subtitles from an SRT file and preserve structure."""
-    with open(input_srt_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+    try:
+        tagged_text = add_tags(raw_text, source_lang_tag)
+        translated_text = translate(tagged_text)
+        sub.content = translated_text
+    except Exception as e:
+        print(f"⚠️ Error translating: {sub.start} --> {sub.end} {sub.content}")
+        print(f"Reason: {e}")
+    translated_subs.append(sub)
 
-    translated_lines = []
-    buffer = []
-    for line in tqdm(lines, desc="Translating"):
-        line = line.strip()
-        if line.isdigit() or TIMESTAMP_PATTERN.match(line) or line == "":
-            if buffer:
-                original = " ".join(buffer)
-                try:
-                    translated = translate(original)
-                except Exception as e:
-                    translated = "[Translation failed]"
-                    print(f"⚠️ Error translating: {original}\n{e}")
-                translated_lines.append(translated)
-                buffer = []
-            translated_lines.append(line)
-        else:
-            buffer.append(line)
+# === WRITE TRANSLATED SRT ===
+with open(TARGET_SRT_PATH, "w", encoding="utf-8") as f:
+    f.write(srt.compose(translated_subs))
 
-    if buffer:
-        original = " ".join(buffer)
-        try:
-            translated = translate(original)
-        except Exception as e:
-            translated = "[Translation failed]"
-            print(f"⚠️ Error translating: {original}\n{e}")
-        translated_lines.append(translated)
-
-    with open(output_srt_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(translated_lines))
-
-    print(f"✅ Translated SRT saved at: {output_srt_path}")
-
-if __name__ == "__main__":
-    input_srt = "sample_output.srt"  # Replace with your actual SRT filename
-    output_srt = "sample_output_translated_ta.srt"
-    translate_srt(input_srt, output_srt)
+print(f"✅ Translated SRT saved at: {TARGET_SRT_PATH}")

@@ -5,11 +5,11 @@ import soundfile as sf
 from tqdm import tqdm
 from transformers import AutoProcessor, AutoModelForTextToWaveform
 
-# 📦 Load Tamil-only TTS model (no emotion support)
-print("📦 Loading ai4bharat/indic-tts-ta...")
+# ✅ Use ai4bharat/indic-tts (multilingual model)
+print("📦 Loading ai4bharat/indic-tts...")
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model = AutoModelForTextToWaveform.from_pretrained("ai4bharat/indic-tts-ta").to(device)
-processor = AutoProcessor.from_pretrained("ai4bharat/indic-tts-ta")
+model = AutoModelForTextToWaveform.from_pretrained("ai4bharat/indic-tts").to(device)
+processor = AutoProcessor.from_pretrained("ai4bharat/indic-tts")
 
 SPEAKER_PATTERN = re.compile(r"^Speaker\s+(\w+):\s*(.+)$")
 os.makedirs("tts_segments", exist_ok=True)
@@ -46,7 +46,7 @@ def synthesize(entries):
         output_path = f"tts_segments/segment_{i+1:04d}.wav"
 
         try:
-            inputs = processor(text=text, return_tensors="pt").to(device)
+            inputs = processor(text=text, return_tensors="pt", language="ta").to(device)
             with torch.no_grad():
                 output = model.generate(**inputs)
             audio = output.cpu().numpy().squeeze()
